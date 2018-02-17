@@ -1,24 +1,29 @@
-import pycuda.autoinit
-import pycuda.driver as drv
-import numpy
+import sys
+import numpy as np
+import tensorflow as tf
+from datetime import datetime
 
-from pycuda.compiler import SourceModule
-mod = SourceModule("""
-__global__ void multiply_them(float *dest, float *a, float *b)
-{
-  const int i = threadIdx.x;
-  dest[i] = a[i] * b[i];
-}
-""")
+device_name = sys.argv[1]  # Choose device from cmd line. Options: gpu or cpu
+shape = (int(sys.argv[2]), int(sys.argv[2]))
+if device_name == "gpu":
+    device_name = "/gpu:0"
+else:
+    device_name = "/cpu:0"
 
-multiply_them = mod.get_function("multiply_them")
+with tf.device(device_name):
+    random_matrix = tf.random_uniform(shape=shape, minval=0, maxval=1)
+    dot_operation = tf.matmul(random_matrix, tf.transpose(random_matrix))
+    sum_operation = tf.reduce_sum(dot_operation)
 
-a = numpy.random.randn(400).astype(numpy.float32)
-b = numpy.random.randn(400).astype(numpy.float32)
 
-dest = numpy.zeros_like(a)
-multiply_them(
-        drv.Out(dest), drv.In(a), drv.In(b),
-        block=(400,1,1), grid=(1,1))
+startTime = datetime.now()
+with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as session:
+        result = session.run(sum_operation)
+        print(result)
 
-print(dest-a*b)
+# It can be hard to see the results on the terminal with lots of output -- add some newlines to improve readability.
+print("\n" * 5)
+print("Shape:", shape, "Device:", device_name)
+print("Time taken:", datetime.now() - startTime)
+
+print("\n" * 5)
